@@ -193,7 +193,7 @@ if __name__ == '__main__':
 
         collect(generation=2)
 
-# Print at end of batch processing
+# Print at the end of batch processing
 print('Processing finalized')
 
 # Note that your HD memory can take space on disk if you define the FileCache use in readers to conserve memory. 
