@@ -1,5 +1,7 @@
-# You'll need to make a snappy configuration as you can see in this link: https://senbox.atlassian.net/wiki/spaces/SNAP/pages/50855941/Configure+Python+to+use+the+SNAP-Python+snappy+interface
-# To run this script you must have the SNAP program and the configured snappy packages
+''' You'll need to make a snappy configuration 
+    As you can see in this link: 
+    https://senbox.atlassian.net/wiki/spaces/SNAP/pages/50855941/Configure+Python+to+use+the+SNAP-Python+snappy+interface
+    To run this script you must have the SNAP program and the configured snappy packages '''
 
 # Import modules from snappy API, path management and gc.collect
 
