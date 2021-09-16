@@ -197,5 +197,5 @@ if __name__ == '__main__':
 
 print('Processing finalized')
 
-# Note that your HD memory can take space on disk if you define the FileCache use in readers to conserve memory. 
-# To clear temporary images you'll need to go to users >> your username >> .snap >> var >> cache >> temp and delete all data inside the folder. 
+# Note that your HD memory can take space on disk if you define the FileCache use in readers to conserve memory 
+# To clear temporary images you'll need to go to users >> your username >> .snap >> var >> cache >> temp and delete all data inside the folder
