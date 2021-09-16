@@ -1,0 +1,198 @@
+# You'll need to make a snappy configuration as you can see in this link: https://senbox.atlassian.net/wiki/spaces/SNAP/pages/50855941/Configure+Python+to+use+the+SNAP-Python+snappy+interface
+# To run this script you must have the SNAP program and the configured snappy packages
+
+# Import modules from snappy API, path management and gc.collect
+
+from snappy import ProductIO
+from snappy import HashMap
+from snappy import GPF
+from os import listdir, remove
+from os.path import isfile, join
+from gc import collect
+
+# Define some functions to apply on main program later
+
+def ApplyOrbitFile(data):
+    print('Aplying Orbit File...')
+
+    parameters = HashMap()
+
+    parameters.put('orbitType', 'Sentinel Precise (Auto Download)')
+    parameters.put('polyDegree', '3')
+    parameters.put('continueOnFail', 'false')
+
+    return GPF.createProduct('Apply-Orbit-File', parameters, data)
+
+def ProductInformation(data):
+    print('Getting product informations...')
+
+    # Getting the width of the scene
+    width = data.getSceneRasterWidth()
+    print('Width: {} px'.format(width))
+
+    # Getting the height of the scene
+    height = data.getSceneRasterHeight()
+    print('Height: {} px'.format(height))
+
+    # Getting the dataset name
+    name = data.getName()
+    print('Name: {}'.format(name))
+
+    # Getting the band names in the imagery
+    band_names = data.getBandNames()
+    print('Band names: {}'.format(', '.join(band_names)))
+
+    return width, height, name, band_names
+
+def ThermalNoiseRemoval(data):
+    print('Removing Thermal Noise...')
+
+    parameters = HashMap()
+
+    parameters.put('removeThermalNoise', True)
+
+    return GPF.createProduct('ThermalNoiseRemoval', parameters, data)
+
+def Remove_GRD_Border_Noise(data):
+    print('Removing GRD Border Noise...')
+
+    parameters = HashMap()
+
+    parameters.put('borderLimit', 500)
+    parameters.put('trimThreshold', 0.5)
+
+    return GPF.createProduct('Remove-GRD-Border-Noise', parameters, data)
+
+def Calibration(data, band, pol):
+    print('Calibrating...')
+
+    parameters = HashMap()
+
+    parameters.put('outputSigmaBand', True)
+    parameters.put('sourceBands', band)
+    parameters.put('selectedPolarisations', pol)
+    parameters.put('outputImageScaleInDb', False)
+
+    return GPF.createProduct('Calibration', parameters, data)
+
+def Terrain_Correction(data, source_band):
+    print('Aplying the Range Doppler Terrain Correction...')
+
+    proj = '''PROJCS["UTM Zone 22, South / World Geodetic System 1984", 
+      GEOGCS["World Geodetic System 1984", 
+        DATUM["World Geodetic System 1984", 
+          SPHEROID["WGS 84", 6378137.0, 298.257223563, AUTHORITY["EPSG","7030"]], 
+          AUTHORITY["EPSG","6326"]], 
+        PRIMEM["Greenwich", 0.0, AUTHORITY["EPSG","8901"]], 
+        UNIT["degree", 0.017453292519943295], 
+        AXIS["Geodetic longitude", EAST], 
+        AXIS["Geodetic latitude", NORTH]], 
+      PROJECTION["Transverse_Mercator"], 
+      PARAMETER["central_meridian", -51.0], 
+      PARAMETER["latitude_of_origin", 0.0], 
+      PARAMETER["scale_factor", 0.9996], 
+      PARAMETER["false_easting", 500000.0], 
+      PARAMETER["false_northing", 10000000.0], 
+      UNIT["m", 1.0], 
+      AXIS["Easting", EAST], 
+      AXIS["Northing", NORTH]]'''
+
+    parameters = HashMap()
+
+    parameters.put('demName', 'SRTM 1Sec HGT')
+    parameters.put('demResamplingMethod', 'BILINEAR_INTERPOLATION')
+    parameters.put('imgResamplingMethod', 'BILINEAR_INTERPOLATION')
+    parameters.put('mapProjection', proj)
+    parameters.put('pixelSpacingInMeter', 10.0)
+    parameters.put('sourceBands', source_band)
+
+    return GPF.createProduct('Terrain-Correction', parameters, data)
+
+def Slice_Assembly(data, pol):
+    print('Processing the slice assembly...')
+
+    parameters = HashMap()
+
+    parameters.put('selectedPolarisations', pol)
+
+    return GPF.createProduct('SliceAssembly', parameters, data)
+
+def Subset(data, wkt, band):
+    print('performing the subset...')
+
+    parameters = HashMap()
+
+    parameters.put('geoRegion', wkt)
+    parameters.put('sourceBands', band)
+
+    return GPF.createProduct('Subset', parameters, data)
+
+# ------------------------------------------------------------------------------------------------------
+
+# Main program
+
+if __name__ == '__main__':
+
+    # GPF Initialization
+    GPF.getDefaultInstance().getOperatorSpiRegistry().loadOperatorSpis()
+
+    # Product initialization
+    s1_path = 'C:/Users/Gabriel/Documents/Cananeia_Iguape/cananeiaiguape_radar/cena_a_b_20172018'
+
+    # List of all bands in a single folder
+    lista_bandas = [f for f in listdir(s1_path) if isfile(join(s1_path, f))]
+    
+    # Full preprocessing of two assembled scenes of single output polarization 
+    # Loop of assembled scenes (As many output images as you want)
+    c = 0
+    for image in lista_bandas:
+
+        if image[-4:] == '.zip':
+
+            product = ProductIO.readProduct('{0}{1}{2}'.format(s1_path, '//', lista_bandas[c]))
+            S1_Orb = ApplyOrbitFile(product)
+            product = None
+            S1_Orb_Therm = ThermalNoiseRemoval(S1_Orb)
+            S1_Orb_Therm_Bord = Remove_GRD_Border_Noise(S1_Orb_Therm)
+
+            c += 1
+
+            product2 = ProductIO.readProduct('{0}{1}{2}'.format(s1_path, '//', lista_bandas[c]))
+            S1_Orb2 = ApplyOrbitFile(product2)
+            product2 = None
+            S1_Orb_Therm2 = ThermalNoiseRemoval(S1_Orb2)
+            S1_Orb_Therm_Bord2 = Remove_GRD_Border_Noise(S1_Orb_Therm2)
+
+            c += 1
+
+            S1_Orb_Therm_Bord_Slice = Slice_Assembly([S1_Orb_Therm_Bord, S1_Orb_Therm_Bord2], 'VV')
+
+            S1_Orb_Therm_Bord_Slice_Cal = Calibration(S1_Orb_Therm_Bord_Slice, 'Intensity_VV', 'VV')
+
+            S1_Orb_Therm_Bord_Slice_Cal_Ter = Terrain_Correction(S1_Orb_Therm_Bord_Slice_Cal, 'Sigma0_VV')
+
+            wkt = 'POLYGON ((-48.140902824312334 -24.58096043905649, -47.290917817373106 -24.59630200758011, \
+            -47.304985453185196 -25.353112197040645, -48.160171635161575 -25.33723410873755, \
+            -48.140902824312334 -24.58096043905649))'
+
+            S1_Orb_Therm_Bord_Slice_Cal_Ter_Sub = Subset(S1_Orb_Therm_Bord_Slice_Cal_Ter, wkt, '')
+
+            nome = S1_Orb_Therm_Bord_Slice_Cal_Ter_Sub.getName()
+
+            nome = str('{0}_VV').format(nome[24:32])
+
+            ProductIO.writeProduct(S1_Orb_Therm_Bord_Slice_Cal_Ter_Sub,
+                                   'C:/Users/Gabriel/Documents/Cananeia_Iguape/cananeiaiguape_radar/cena_20172018_VV/{}'.format(nome), 'BEAM-DIMAP')
+
+            global c
+
+        if c == len(lista_bandas):
+            break
+
+        collect(generation=2)
+
+# Print at end of batch processing
+print('Processing finalized')
+
+# Note that your HD memory can take space on disk if you define the FileCache use in readers to conserve memory. 
+# To clear temporary images you'll need to go to users >> your username >> .snap >> var >> cache >> temp and delete all data inside the folder. 
